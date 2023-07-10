@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>MandelbrotSet</title>
+    <meta charset="UTF-8">
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://preview.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
+
+    <style>
+        html,
+        body {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+
+        #fps {
+            position: absolute;
+            background-color: black;
+            /* border: 2px solid red; */
+            text-align: center;
+            font-size: 16px;
+            color: white;
+            top: 15px;
+            right: 10px;
+            width: 60px;
+            height: 20px;
+        }
+    </style>
+
+</head>
+
+<body>
+    <canvas id="renderCanvas"></canvas>
+    <script>
+        let canvas = document.getElementById("renderCanvas");
+        let engine = new BABYLON.Engine(canvas, true);
+
+
+        let createScene = function () {
+            let scene = new BABYLON.Scene(engine);
+
+
+            let camera = new BABYLON.ArcRotateCamera("Camera",
+                -Math.PI / 2,
+                Math.PI / 2.24,
+                10, new BABYLON.Vector3(0, 0, 0), scene);
+            camera.attachControl(canvas, true);
+
+            let light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+            light.position = new BABYLON.Vector3(20, 150, 70);
+            light.intensity = 0.7;
+
+            let time = 0;
+            const points = [];
+
+
+            // let MAX_ITERATION = 60.
+            // function mandelbrot(c) {
+            //     let z = new BABYLON.Vector2(0, 0);
+            //     let v = new BABYLON.Vector2(0, 0);
+            //     z.x = c.x;
+            //     z.y = c.y;
+            //     let count = 0.0;
+            //     for (let i = 0.0; i < MAX_ITERATION; i++) {
+            //         v.x = z.x * z.x - z.y * z.y + c.x;
+            //         v.y = 2.0 * z.x * z.y + c.y;
+            //         z.x = v.x;
+            //         z.y = v.y;
+            //         // if (Math.sqrt(z.x * z.x + z.y * z.y) > 2.0) break;
+            //         if (!pointInPolygon(z.x, z.y, polygon)) break;
+
+            //         count += 1.0;
+            //     }
+            //     return count / MAX_ITERATION;
+            // }
+
+
+            var material = new BABYLON.GridMaterial("groundMaterial", scene);
+            var ground = BABYLON.MeshBuilder.CreateGround("ground", { width: 3000, height: 3000, updatable: true }, scene);
+            // ground.material = material;
+
+
+            let instanceId = 0;
+            const meshBase = BABYLON.MeshBuilder.CreateSphere("", { diameter: 1, segments: 1 });
+            meshBase.material = material;
+            meshBase.isVisible = false;
+
+            let meshes = [];
+
+
+            let delta = 0.05;
+            for (let x = -2; x <= 2; x += delta) {
+                for (let y = -2; y <= 2; y += delta) {
+                    points.push(new BABYLON.Vector3(x, y, 0));
+                    // colors.push(new BABYLON.Color4(1, 1, 1, 1));
+                }
+            }
+
+            let pcs = new BABYLON.PointsCloudSystem("pcs", 2, scene);
+
+            let initParticles = function (particle, i, s) {
+                particle.position = points[i];
+                // particle.color = colors[i];
+
+                particle.c = new BABYLON.Vector2(points[i].x, points[i].y);
+                particle.z = new BABYLON.Vector2(0, 0);
+                particle.v = new BABYLON.Vector2(0, 0);
+                particle.z.x = points[i].x;
+                particle.z.y = points[i].y;
+            };
+            pcs.addPoints(points.length, initParticles);
+            pcs.buildMeshAsync();
+
+            let flag = 10;
+            pcs.updateParticle = function (particle) {
+
+                // for (let i = 0; i < 2; i++) 
+                {
+                    particle.v.x = particle.z.x * particle.z.x - particle.z.y * particle.z.y + particle.c.x;
+                    particle.v.y = 2 * particle.z.x * particle.z.y + particle.c.y;
+                    particle.z.x = particle.v.x;
+                    particle.z.y = particle.v.y;
+                }
+
+                particle.position.set(particle.v.x, 0, particle.v.y);
+
+                {
+                    let ix = Math.floor(particle.v.x * 100);
+                    let iy = Math.floor(particle.v.y * 100);
+                    if (meshes[ix] == undefined)
+                        meshes[ix] = [];
+                    if (meshes[ix][iy] == undefined) {
+                        meshes[ix][iy] = meshBase.createInstance(instanceId++);
+                        meshes[ix][iy].position.set(ix, 0, iy);
+                    }
+
+                    meshes[ix][iy].scaling.y += 0.1;
+                    meshes[ix][iy].position.y += 0.1 * 0.5;
+                }
+
+                flag++;
+
+            };
+
+
+
+            let desiredFps = 1;
+            let interval = 1000 / (10 * desiredFps);
+            let lastTime = performance.now();
+
+            scene.registerAfterRender(() => {
+                let currentTime = performance.now();
+                const deltaTime = currentTime - lastTime;
+                if (deltaTime > interval) {
+                    lastTime = currentTime - (deltaTime % interval);
+
+                    pcs.setParticles();
+                }
+            });
+
+            return scene;
+
+        }
+
+        let scene = createScene();
+
+        engine.runRenderLoop(function () {
+            scene.render();
+        });
+
+        window.addEventListener("resize", function () {
+            engine.resize();
+        });
+    </script>
+</body>
